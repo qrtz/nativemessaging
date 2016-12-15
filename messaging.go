@@ -1,4 +1,4 @@
-package nativemessage
+package nativemessaging
 
 import (
 	"bytes"
