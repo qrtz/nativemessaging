@@ -2,6 +2,8 @@
 Native messaging host library
 ## Usage
 
+**Go host application**
+
 ``` go
 package main
 
@@ -52,4 +54,12 @@ type response struct {
 	Text    string `json:"text"`
 	Success bool   `json:"success"`
 }
+```
+
+**Javascript client**
+
+``` js
+    chrome.runtime.sendNativeMessage(nativeMessagingHost, {text:'ping'}, (response) => {
+        console.log("Native messaging host response ", response);
+    })
 ```
