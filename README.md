@@ -67,5 +67,5 @@ type response struct {
 
 **More info:**  
 
-https://developer.chrome.com/extensions/nativeMessaging
+https://developer.chrome.com/extensions/nativeMessaging  
 https://developer.mozilla.org/en-US/Add-ons/WebExtensions/Native_messaging
