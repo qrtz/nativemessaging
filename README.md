@@ -1,5 +1,6 @@
 # nativemessaging
-Native messaging host library
+Native messaging host library for go application  
+
 ## Usage
 
 **Go host application**
@@ -63,3 +64,8 @@ type response struct {
         console.log("Native messaging host response ", response);
     })
 ```
+
+**More info:**  
+
+https://developer.chrome.com/extensions/nativeMessaging
+https://developer.mozilla.org/en-US/Add-ons/WebExtensions/Native_messaging
