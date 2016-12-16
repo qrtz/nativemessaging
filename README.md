@@ -60,8 +60,8 @@ type response struct {
 **Javascript client**
 
 ``` js
-    chrome.runtime.sendNativeMessage(nativeMessagingHost, {text:'ping'}, (response) => {
-        console.log("Native messaging host response ", response);
+    chrome.runtime.sendNativeMessage('com.github.qrtz.nativemessaginghost', {text:'ping'}, (response) => {
+        console.log('Native messaging host response ', response);
     })
 ```
 
