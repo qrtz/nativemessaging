@@ -7,7 +7,6 @@ import (
 	"errors"
 	"io"
 	"io/ioutil"
-	"unsafe"
 )
 
 var (
@@ -17,19 +16,7 @@ var (
 	// ErrByteOrderNotSet byter order is set on the first read
 	ErrByteOrderNotSet = errors.New("Byte order not set")
 	messageSizeInBytes = binary.Size(uint32(0))
-	// NativeByteOrder system native endian
-	NativeByteOrder binary.ByteOrder
 )
-
-func init() {
-	i := uint32(1)
-	b := (*[4]byte)(unsafe.Pointer(&i))
-	if b[0] == 1 {
-		NativeByteOrder = binary.LittleEndian
-	} else {
-		NativeByteOrder = binary.BigEndian
-	}
-}
 
 // MessagingHost interface represents the native messaging communication
 type MessagingHost interface {
@@ -59,6 +46,11 @@ func (h *host) Send(v interface{}) (int, error) {
 }
 func (h *host) Receive(v interface{}) error {
 	return Receive(h.r, v, h.bo)
+}
+
+// NativeHost creates and returns an implementation of MessagingHost with native byte order
+func NativeHost(stdin io.Reader, stdout io.Writer) MessagingHost {
+	return &host{r: stdin, w: stdout, bo: NativeEndian}
 }
 
 // New creates and returns an implementation of MessagingHost

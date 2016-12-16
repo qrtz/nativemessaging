@@ -10,9 +10,14 @@ import (
 
 // Test write
 func write(t *testing.T, endian binary.ByteOrder) {
+	var host MessagingHost
 	buf := new(bytes.Buffer)
 	value := "native message host"
-	host := New(nil, buf, endian)
+	if endian == nil {
+		host = NativeHost(nil, buf)
+	} else {
+		host = New(nil, buf, endian)
+	}
 	i, err := host.Write(strings.NewReader(value))
 
 	if err != nil {
@@ -30,7 +35,7 @@ func write(t *testing.T, endian binary.ByteOrder) {
 }
 
 func TestWriteNativeEndian(t *testing.T) {
-	write(t, NativeByteOrder)
+	write(t, nil)
 }
 
 func TestWriteLittleEndian(t *testing.T) {
@@ -44,9 +49,16 @@ func TestWriteBigEndian(t *testing.T) {
 // Test send
 
 func send(t *testing.T, endian binary.ByteOrder) {
+	var host MessagingHost
 	value := struct{ Text string }{Text: "native messaging host"}
 	buf := new(bytes.Buffer)
-	host := New(nil, buf, endian)
+
+	if endian == nil {
+		host = NativeHost(nil, buf)
+	} else {
+		host = New(nil, buf, endian)
+	}
+
 	i, err := host.Send(value)
 	if err != nil {
 		t.Fatal(err)
@@ -66,7 +78,7 @@ func send(t *testing.T, endian binary.ByteOrder) {
 	}
 }
 func TestSendNativeEndian(t *testing.T) {
-	send(t, NativeByteOrder)
+	send(t, nil)
 }
 
 func TestSendLittleEndian(t *testing.T) {
@@ -80,14 +92,23 @@ func TestSendBigEndian(t *testing.T) {
 // Test Read
 
 func read(t *testing.T, endian binary.ByteOrder) {
+	var host MessagingHost
 	value := struct{ Text string }{Text: "native messaging host"}
 	data, err := json.Marshal(value)
 	if err != nil {
 		t.Fatal(err)
 	}
 	header := make([]byte, binary.Size(uint32(0)))
-	endian.PutUint32(header, uint32(len(data)))
-	host := New(bytes.NewReader(append(header, data...)), nil, endian)
+
+	if endian == nil {
+		endian = NativeEndian
+		endian.PutUint32(header, uint32(len(data)))
+		host = NativeHost(bytes.NewReader(append(header, data...)), nil)
+	} else {
+		endian.PutUint32(header, uint32(len(data)))
+		host = New(bytes.NewReader(append(header, data...)), nil, endian)
+	}
+
 	result, err := host.Read()
 
 	if err != nil {
@@ -100,7 +121,7 @@ func read(t *testing.T, endian binary.ByteOrder) {
 }
 
 func TestReadNativeEndian(t *testing.T) {
-	read(t, NativeByteOrder)
+	read(t, nil)
 }
 
 func TestReadLittleEndian(t *testing.T) {
@@ -114,14 +135,21 @@ func TestReadBigEndian(t *testing.T) {
 // Test Receive
 
 func receive(t *testing.T, endian binary.ByteOrder) {
+	var host MessagingHost
 	value := struct{ Text string }{Text: "native messaging host"}
 	b, err := json.Marshal(value)
 	if err != nil {
 		t.Fatal(err)
 	}
 	header := make([]byte, binary.Size(uint32(0)))
-	endian.PutUint32(header, uint32(len(b)))
-	host := New(bytes.NewReader(append(header, b...)), nil, endian)
+	if endian == nil {
+		endian = NativeEndian
+		endian.PutUint32(header, uint32(len(b)))
+		host = NativeHost(bytes.NewReader(append(header, b...)), nil)
+	} else {
+		endian.PutUint32(header, uint32(len(b)))
+		host = New(bytes.NewReader(append(header, b...)), nil, endian)
+	}
 	var result struct{ Text string }
 	err = host.Receive(&result)
 
@@ -135,7 +163,7 @@ func receive(t *testing.T, endian binary.ByteOrder) {
 }
 
 func TestReceiveNativeEndian(t *testing.T) {
-	receive(t, NativeByteOrder)
+	receive(t, nil)
 }
 
 func TestReceiveLittleEndian(t *testing.T) {
