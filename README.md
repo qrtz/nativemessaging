@@ -16,13 +16,13 @@ import (
 )
 
 func main() {
-	// Messaging host with native byte order
-	host := nativemessaging.NativeHost(os.Stdin, os.Stdout)
+	decoder := nativemessaging.NewNativeJSONDecoder(os.Stdin)
+	encoder := nativemessaging.NewNativeJSONEncoder(os.Stdout)
 
 	for {
 		var rsp response
 		var msg message
-		err := host.Receive(&msg)
+		err := decoder.Decode(&msg)
 
 		if err != nil {
 			if err == io.EOF {
@@ -40,7 +40,7 @@ func main() {
 			}
 		}
 
-		if _, err := host.Send(rsp); err != nil {
+		if err := encoder.Encode(rsp); err != nil {
 			// Log the error and exit
 			return
 		}
