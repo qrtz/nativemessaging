@@ -18,12 +18,138 @@ var (
 	messageSizeInBytes = binary.Size(uint32(0))
 )
 
-// MessagingHost interface represents the native messaging communication
-type MessagingHost interface {
-	Read() ([]byte, error)
+// Writer is an interface that wraps the Write method.
+type Writer interface {
+	// Write writes bytes from the given io.Reader to the underlying io.Writer
+	// It returns the number of bytes from io.Reader and any error from the write operation.
 	Write(io.Reader) (int, error)
-	Send(interface{}) (int, error)
-	Receive(v interface{}) error
+}
+
+// Reader is an interface that wraps the Read method.
+type Reader interface {
+	// Read reads bytes from an io.Reader.
+	// It returns the bytes read and an error from the read operation.
+	// Read may return io.EOF when the underlying stream reach the end or is closed
+	Read() ([]byte, error)
+}
+
+// JSONEncoder writes JSON values to an output stream.
+type JSONEncoder interface {
+	Encode(interface{}) error
+}
+
+// JSONDecoder reads and decodes JSON values from an input stream.
+type JSONDecoder interface {
+	Decode(interface{}) error
+}
+
+type writer struct {
+	w  io.Writer
+	bo binary.ByteOrder
+}
+
+// NewWriter returns a new writer that writes to w
+// The data is preceded with 32-bit data length in the specified byte order
+func NewWriter(w io.Writer, bo binary.ByteOrder) Writer {
+	return &writer{
+		w:  w,
+		bo: bo,
+	}
+}
+
+// NewNativeWriter returns a new writer that writes to the given io.Writer
+// The data is preceded with 32-bit data length in native byte order
+func NewNativeWriter(w io.Writer) Writer {
+	return &writer{
+		w:  w,
+		bo: NativeEndian,
+	}
+}
+
+func (w *writer) Write(r io.Reader) (int, error) {
+	return Write(w.w, r, w.bo)
+}
+
+type reader struct {
+	r  io.Reader
+	bo binary.ByteOrder
+}
+
+// NewReader returns a new reader that reads from the given io.Reader
+// interpreting the first 4 bytes as 32-bit data length in the specified byte order
+func NewReader(r io.Reader, bo binary.ByteOrder) Reader {
+	return &reader{
+		r:  r,
+		bo: bo,
+	}
+}
+
+// NewNativeReader returns a new reader that reads from the given io.Reader
+// interpreting the first 4 bytes as 32-bit data length in native byte order
+func NewNativeReader(r io.Reader) Reader {
+	return &reader{
+		r:  r,
+		bo: NativeEndian,
+	}
+}
+
+func (r *reader) Read() ([]byte, error) {
+	return Read(r.r, r.bo)
+}
+
+type jsonEncoder struct {
+	w  io.Writer
+	bo binary.ByteOrder
+}
+
+// NewJSONEncoder returns a new jsonEncoder that write to the given io.Writer
+// The data is preceded with 32-bit data length in the specified byte order
+func NewJSONEncoder(w io.Writer, bo binary.ByteOrder) JSONEncoder {
+	return &jsonEncoder{
+		w:  w,
+		bo: bo,
+	}
+}
+
+// NewNativeJSONEncoder returns a new jsonEncoder that writes to the given io.Writer
+// The data is preceded with 32-bit data length in native byte order
+func NewNativeJSONEncoder(w io.Writer) JSONEncoder {
+	return &jsonEncoder{
+		w:  w,
+		bo: NativeEndian,
+	}
+}
+
+func (e *jsonEncoder) Encode(v interface{}) error {
+	_, err := Encode(e.w, v, e.bo)
+	return err
+}
+
+type jsonDecoder struct {
+	r  io.Reader
+	bo binary.ByteOrder
+}
+
+// NewJSONDecoder returns a new jsonDecoder that reads from the given io.Reader
+// interpreting the first 4 bytes as 32-bit data length in the specified byte order
+func NewJSONDecoder(r io.Reader, bo binary.ByteOrder) JSONDecoder {
+	return &jsonDecoder{
+		r:  r,
+		bo: bo,
+	}
+}
+
+// NewNativeJSONDecoder returns a new jsonDecoder that reads from the given io.Reader
+// interpreting the first 4 bytes as 32-bit data length in native byte order
+func NewNativeJSONDecoder(r io.Reader) JSONDecoder {
+	return &jsonDecoder{
+		r:  r,
+		bo: NativeEndian,
+	}
+}
+
+func (d *jsonDecoder) Decode(v interface{}) error {
+	return Decode(d.r, v, d.bo)
 }
 
 type host struct {
@@ -41,25 +167,15 @@ func (h *host) Write(message io.Reader) (int, error) {
 }
 
 func (h *host) Send(v interface{}) (int, error) {
-	return Send(h.w, v, h.bo)
+	return Encode(h.w, v, h.bo)
 
 }
 func (h *host) Receive(v interface{}) error {
-	return Receive(h.r, v, h.bo)
+	return Decode(h.r, v, h.bo)
 }
 
-// NativeHost creates and returns an implementation of MessagingHost with native byte order
-func NativeHost(stdin io.Reader, stdout io.Writer) MessagingHost {
-	return &host{r: stdin, w: stdout, bo: NativeEndian}
-}
-
-// New creates and returns an implementation of MessagingHost
-// This is convenient so you don't have to always pass around a reader and writer
-func New(stdin io.Reader, stdout io.Writer, order binary.ByteOrder) MessagingHost {
-	return &host{r: stdin, w: stdout, bo: order}
-}
-
-// Read reads a message from the reader
+// Read reads a message from the given io.Reader interpreting the
+// leading first 4 bytes as a 32-bit unsigned integer encoded in the specified byte order
 func Read(r io.Reader, order binary.ByteOrder) ([]byte, error) {
 	b := make([]byte, messageSizeInBytes)
 	i, err := r.Read(b)
@@ -83,8 +199,9 @@ func Read(r io.Reader, order binary.ByteOrder) ([]byte, error) {
 	return m, nil
 }
 
-// Receive parses the incoming JSON-encoded data and stores the result in the value pointed to by v.
-func Receive(r io.Reader, v interface{}, order binary.ByteOrder) error {
+// Decode parses the incoming JSON-encoded data and stores the result in the value pointed to by v.
+// The leading first 4 bytes of the data is interpreted as a 32-bit unsigned integer encoded in the specified byte order
+func Decode(r io.Reader, v interface{}, order binary.ByteOrder) error {
 	b, err := Read(r, order)
 	if err != nil {
 		return err
@@ -96,7 +213,8 @@ func Receive(r io.Reader, v interface{}, order binary.ByteOrder) error {
 	return nil
 }
 
-// Write write a message to the writer
+// Write writes to io.Writer the data read from the given io.Reader
+// The data is preceded with a 32-bit unsigned integer data length in the specified byte order
 func Write(w io.Writer, message io.Reader, order binary.ByteOrder) (i int, err error) {
 	data, err := ioutil.ReadAll(message)
 	if err != nil {
@@ -108,8 +226,9 @@ func Write(w io.Writer, message io.Reader, order binary.ByteOrder) (i int, err e
 	return w.Write(append(header, data...))
 }
 
-// Send writes the json encoded value of v to the writer
-func Send(w io.Writer, v interface{}, order binary.ByteOrder) (int, error) {
+// Encode writes to io.Writer the json encoded data of the given value
+// The data is preceded with a 32-bit unsigned integer data length in the specified byte order
+func Encode(w io.Writer, v interface{}, order binary.ByteOrder) (int, error) {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return 0, err
